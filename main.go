@@ -14,6 +14,7 @@ func main() {
 	addTask("Template one")
 	addTask("Template two")
 	addTask("Template three")
+	taskComplete(3)
 	viewTasks()
 }
 
@@ -28,13 +29,33 @@ func addTask(description string) {
 	fmt.Println("Task added successfully")
 }
 
-func viewTasks() {
-	fmt.Print("ID\t|Status\t|\tDescription\n")
-	for _, task := range tasks {
-		if len(tasks) != 0 {
-			fmt.Printf("%v\t|%v\t|%v\n", task.ID, task.Status, task.Description)
-		} else {
-			fmt.Println("No tasks for now")
+func taskComplete(id int) {
+	found := false
+	if len(tasks) == 0 {
+		fmt.Println("\tNo tasks here yet")
+	} else {
+		for i, task := range tasks {
+			if task.ID == id {
+				tasks[i].Status = true
+				fmt.Printf("Task %v Marked completed\n", task.ID)
+				found = true
+				break
+			}
+		}
+		if !found {
+			fmt.Println("\tTask not found")
 		}
 	}
+}
+
+func viewTasks() {
+	fmt.Print("ID\t|Status\t|\tDescription\n")
+	if len(tasks) > 0 {
+		for _, task := range tasks {
+			fmt.Printf("%v\t|%v\t|%v\n", task.ID, task.Status, task.Description)
+		}
+	} else {
+		fmt.Println("\tNo tasks for now")
+	}
+
 }
