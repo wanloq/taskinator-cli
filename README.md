@@ -13,7 +13,7 @@ As my first mini-project on this journey, I’ll build this simple CLI-based tas
 # Summary
 During this mini-project, I applied core Go concepts to build a functional CLI Task Manager. Here a breakdown:
 
-1. # Go Syntax & Program Structure
+1. ## Go Syntax & Program Structure
 ✔ Structured my Go program with functions, loops, and conditionals to handle different commands efficiently.
 ✔ Applied maps to store command prompts dynamically.
 
