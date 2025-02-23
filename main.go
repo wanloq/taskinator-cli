@@ -56,6 +56,7 @@ func main() {
 		}
 		if len(inputSlice) >= 2 {
 			arg = inputSlice[1]
+			arg = strings.TrimSpace(arg)
 		}
 
 		switch command {
