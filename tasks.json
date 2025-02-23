@@ -1,0 +1,32 @@
+[
+ {
+  "id": 1,
+  "description": "Go to church on sunday",
+  "status": false
+ },
+ {
+  "id": 3,
+  "description": "Read the bible",
+  "status": false
+ },
+ {
+  "id": 4,
+  "description": "Drink water",
+  "status": true
+ },
+ {
+  "id": 5,
+  "description": "Go to the Gym at 15:00",
+  "status": false
+ },
+ {
+  "id": 7,
+  "description": "Read another book",
+  "status": false
+ },
+ {
+  "id": 8,
+  "description": "Speaking practice",
+  "status": true
+ }
+]
