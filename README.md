@@ -11,9 +11,17 @@ As my first mini-project on this journey, I’ll build this simple CLI-based tas
 ✅ Save tasks to file.  
 ✅ Load tasks from file.  
 
+## Additional Improvements
+
+1.  Add a priority.  
+2.  Add a due date.  
+
 # Summary
 
 During this mini-project, I applied core Go concepts to build a functional CLI Task Manager. Here a breakdown:
+
+### V1 achieved all the functionalities needed but did not implement any interfaces
+### V2 achieved all the functionalities and implemented an interface for handling the tasklist
 
 ## 1. Go Syntax & Program Structure
 
