@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Task struct {
@@ -19,21 +22,33 @@ type Task struct {
 
 type Taskinator interface {
 	AddTask(description string, priority int, dueDate string)
+	Save()
+	LoadTasks(ch chan bool)
 	ViewTasks()
 	ViewCompletedTasks()
 	ViewIncompletedTasks()
-	TaskComplete(id int)
-	Save()
-	DeleteTask(id int)
+	TaskComplete(id int) string
+	DeleteTask(id int) string
 }
 
 type TaskList struct {
 	tasks []Task
 }
 
-var myList TaskList
+var (
+	myList  Taskinator
+	command string
+	arg1    string
+	arg2    int
+	arg3    string
+
+	taskQueue = make(chan int, 5)
+	results   = make(chan string)
+	wg        sync.WaitGroup
+)
 
 func main() {
+	myList = &TaskList{}
 	/*
 	 ADD-Go to church on sunday-3-2025/03/03
 	 ADD-Read a book-2-2025/03/09
@@ -41,9 +56,19 @@ func main() {
 	 ADD-Drink water-0-2025/03/02
 	 ADD-Go to the Gym at 15:00-3-2025/03/04
 	*/
+	ch := make(chan bool)
+	ch2 := make(chan string)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit)
+	go Quit(quit)
 
-	myList.LoadTasks()
-
+	status := "Loading Tasks..."
+	go myList.LoadTasks(ch)
+	log.Println(status)
+	if <-ch == true {
+		status = "Done!"
+	}
+	log.Println(status)
 	commands := map[string]string{
 		"Add new task":           "ADD-\"Task Description\"-Priority(0 to 3)-Due Date(YYYY//MM/DD)",
 		"Delete a task":          "DELETE-\"Task ID\"",
@@ -62,35 +87,11 @@ func main() {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("\nEnter a command: ")
 		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-		inputSlice := strings.Split(input, "-")
-		command := strings.ToUpper(strings.TrimSpace(inputSlice[0]))
-		var (
-			arg1 string
-			arg2 int
-			arg3 string
-		)
-		if len(inputSlice) <= 1 {
-			if command != "ADD" && command != "SAVE" && command != "DELETE" && command != "VIEW ALL" && command != "VIEW COMPLETED" && command != "VIEW PENDING" && command != "MARK COMPLETE" {
-				fmt.Println("Invalid input, Try again")
-				continue
-			}
-		} else if len(inputSlice) >= 2 {
-			arg1 = strings.TrimSpace(inputSlice[1])
-			arg2 = 3
-			arg3 = "2024/02/28"
-		}
-		if len(inputSlice) >= 3 {
-			arg2, _ = strconv.Atoi(strings.TrimSpace(inputSlice[2]))
-		}
-		if len(inputSlice) >= 4 {
-			arg3 = strings.TrimSpace(inputSlice[3])
-		}
+
+		ParseInput(input)
 
 		switch command {
 		case "ADD":
-			fmt.Println(inputSlice)
-			fmt.Printf("command:%v\ndesc:%v\nprio:%v\ndate:%v\n", command, arg1, arg2, arg3)
 			myList.AddTask(arg1, arg2, arg3)
 		case "VIEW ALL":
 			myList.ViewTasks()
@@ -98,30 +99,73 @@ func main() {
 			myList.ViewCompletedTasks()
 		case "VIEW PENDING":
 			myList.ViewIncompletedTasks()
-		case "MARK COMPLETE":
-			arg1Int, _ := strconv.Atoi(arg1)
-			myList.TaskComplete(arg1Int)
 		case "SAVE":
 			myList.Save()
-		case "DELETE":
-			arg1Int, _ := strconv.Atoi(arg1)
-			myList.DeleteTask(arg1Int)
 		default:
-			fmt.Println("Command not supported")
+			id, _ := strconv.Atoi(arg1)
+			go ProcessTask(id, ch2)
+			fmt.Println(<-ch2)
 		}
 	}
 }
 
-func (tList *TaskList) LoadTasks() {
+func Quit(quit chan os.Signal) {
+	<-quit
+	fmt.Println("\nTidying things Up...")
+	myList.Save()
+	// close(taskQueue)
+	// wg.Wait()
+	fmt.Println("\nBis Später!")
+	os.Exit(0)
+}
+
+func ParseInput(userInput string) {
+	userInput = strings.TrimSpace(userInput)
+	inputSlice := strings.Split(userInput, "-")
+	command = strings.ToUpper(strings.TrimSpace(inputSlice[0]))
+	if len(inputSlice) <= 1 {
+		if command != "ADD" && command != "SAVE" && command != "DELETE" && command != "VIEW ALL" && command != "VIEW COMPLETED" && command != "VIEW PENDING" && command != "MARK COMPLETE" {
+		}
+	} else if len(inputSlice) >= 2 {
+		arg1 = strings.TrimSpace(inputSlice[1])
+		arg2 = 3
+		arg3 = "2024/02/28"
+	}
+	if len(inputSlice) >= 3 {
+		arg2, _ = strconv.Atoi(strings.TrimSpace(inputSlice[2]))
+	}
+	if len(inputSlice) >= 4 {
+		arg3 = strings.TrimSpace(inputSlice[3])
+	}
+
+}
+
+func ProcessTask(id int, ch chan string) {
+	switch command {
+	case "MARK COMPLETE":
+		msg := myList.TaskComplete(id)
+		ch <- msg
+	case "DELETE":
+		msg := myList.DeleteTask(id)
+		ch <- msg
+	default:
+		ch <- "Command not supported\nTry Again!"
+	}
+}
+
+func (tList *TaskList) LoadTasks(ch chan bool) {
+	defer close(ch)
+
 	jsonData, _ := os.ReadFile("tasks.json")
 	json.Unmarshal(jsonData, &tList.tasks)
-	fmt.Println("\nSaved tasks successfully loaded to memeory")
+	// fmt.Println("\nSaved tasks successfully loaded to memeory")
+	ch <- true
 }
 
 func (tList *TaskList) Save() {
 	jsonData, _ := json.MarshalIndent(tList.tasks, "", " ")
 	os.WriteFile("tasks.json", jsonData, 0644)
-	fmt.Println("Changes Saved Successfully!")
+	fmt.Println("File Updated!")
 }
 
 func (tList *TaskList) AddTask(description string, priority int, dueDate string) {
@@ -205,43 +249,38 @@ func (tList *TaskList) ViewIncompletedTasks() {
 	}
 }
 
-func (tList *TaskList) TaskComplete(id int) {
-	found := false
+func (tList *TaskList) TaskComplete(id int) string {
 	if len(tList.tasks) == 0 {
-		fmt.Println("\tNo tasks here yet")
-	} else {
-		for i, task := range tList.tasks {
-			if task.ID == id {
-				tList.tasks[i].Status = true
-				fmt.Printf("%v Marked completed\n", task.Description)
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Println("\tTask not found")
+		return fmt.Sprintln("\tNo tasks here yet")
+	}
+	for i, task := range tList.tasks {
+		if task.ID == id {
+			tList.tasks[i].Status = true
+			myList.Save()
+			return fmt.Sprintf("%v Successfully Completed\n", task.Description)
 		}
 	}
-	myList.Save()
+	return fmt.Sprintf("\tTask with ID: %v not found\n", id)
 }
 
-func (tList *TaskList) DeleteTask(id int) {
-	found := false
+func (tList *TaskList) DeleteTask(id int) string {
 	if len(tList.tasks) == 0 {
-		fmt.Printf("\tTask with ID:%v not found\n", id)
-	} else {
-		for i, task := range tList.tasks {
-			if task.ID == id {
-				myList.tasks = append(tList.tasks[:i], tList.tasks[i+1:]...)
-				fmt.Printf("Task %v Successfully Deleted\n", id)
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Println("\tTask not found")
+		return fmt.Sprintln("\tNo tasks here yet")
+	}
+	for i, task := range tList.tasks {
+		if task.ID == id {
+			tList.tasks = append(tList.tasks[:i], tList.tasks[i+1:]...)
+			myList.Save()
+			return fmt.Sprintf("%v Successfully Removed\n", task.Description)
 		}
 	}
-	myList.Save()
+	return fmt.Sprintf("\tTask with ID: %v not found\n", id)
+}
 
+func Worker(id int, tasks <-chan int, results chan<- string) {
+	for taskID := range tasks {
+		result := myList.TaskComplete(taskID) // Mark task as complete
+		results <- fmt.Sprintf("Worker %d: %s", id, result)
+		wg.Done() // Signal that a task is done
+	}
 }

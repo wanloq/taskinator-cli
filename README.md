@@ -20,8 +20,19 @@ As my first mini-project on this journey, I’ll build this simple CLI-based tas
 
 During this mini-project, I applied core Go concepts to build a functional CLI Task Manager. Here a breakdown:
 
-### V1 achieved all the functionalities needed but did not implement any interfaces
-### V2 achieved all the functionalities and implemented an interface for handling the tasklist
+## V1 
+
+✔ Achieved all the functionalities needed but did not implement any extra features to boost efficiency.  
+
+## V2 
+✔ Achieved all the needed functionalities.  
+✔ Implemented an interface for handling the tasklist.  
+✔ Implemented goroutines and channels for handling concurrent operations on tasks.  
+✔ Implemnets a parser.  
+✔ Implements a process task function for handling operations that can be done concurrently.  
+✔ 
+✔ 
+✔ 
 
 ## 1. Go Syntax & Program Structure
 
