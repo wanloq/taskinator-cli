@@ -72,6 +72,7 @@ func main() {
 	ch2 := make(chan string)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	close(taskQueue)
 	go Quit(quit)
 
 	status := "Loading Tasks..."
@@ -152,11 +153,18 @@ func ParseInput(userInput string) {
 func ProcessTask(command string, id int, ch2 chan string) {
 	// Add task to the wait group
 	// Send task ID to taskQueue
+	// Create a unique response channel per request
 	// Send/return the processed result to ch2
 
 	wg.Add(1)
 	taskQueue <- TaskRequest{Command: command, ID: id}
-	ch2 <- <-results
+	responseChan := make(chan string)
+	taskQueue <- TaskRequest{Command: command, ID: id}
+
+	go func() {
+		ch2 <- <-responseChan
+		close(responseChan)
+	}()
 }
 
 func (tList *TaskList) LoadTasks(ch chan bool) {
@@ -303,7 +311,7 @@ func Quit(quit chan os.Signal) {
 	<-quit
 	fmt.Println("\nTidying things Up...")
 	myList.Save()
-	close(taskQueue)
+	// close(taskQueue)
 	wg.Wait()
 	fmt.Println("\nBis Bald!")
 	os.Exit(0)
