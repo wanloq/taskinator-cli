@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 type Task struct {
@@ -35,6 +36,11 @@ type TaskList struct {
 	tasks []Task
 }
 
+type TaskRequest struct {
+	Command string
+	ID      int
+}
+
 var (
 	myList  Taskinator
 	command string
@@ -42,7 +48,7 @@ var (
 	arg2    int
 	arg3    string
 
-	taskQueue = make(chan int, 5)
+	taskQueue = make(chan TaskRequest, 5)
 	results   = make(chan string)
 	wg        sync.WaitGroup
 )
@@ -50,16 +56,22 @@ var (
 func main() {
 	myList = &TaskList{}
 	/*
-	 ADD-Go to church on sunday-3-2025/03/03
-	 ADD-Read a book-2-2025/03/09
-	 ADD-Read the bible-1-2025/03/07
-	 ADD-Drink water-0-2025/03/02
-	 ADD-Go to the Gym at 15:00-3-2025/03/04
+		echo -e "ADD-Test1-1-2025/03/06\nADD-Test2-2-2025/03/07\nMARK-1\nDELETE-2\nALL" | xargs -I {} -P 5 go run main.go "{}"
+		ADD-Go to church on sunday-3-2025/03/03
+		ADD-Read a book-2-2025/03/09
+		ADD-Read the bible-1-2025/03/07
+		ADD-Drink water-0-2025/03/02
+		ADD-Go to the Gym at 15:00-3-2025/03/04
+		ADD-Read Golang book-2-2025/03/05
+		MARK-1
+		DELETE-2
+		ADD-Complete project-3-2025/03/10
+		ALL
 	*/
 	ch := make(chan bool)
 	ch2 := make(chan string)
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	go Quit(quit)
 
 	status := "Loading Tasks..."
@@ -69,13 +81,18 @@ func main() {
 		status = "Done!"
 	}
 	log.Println(status)
+
 	commands := map[string]string{
 		"Add new task":           "ADD-\"Task Description\"-Priority(0 to 3)-Due Date(YYYY//MM/DD)",
 		"Delete a task":          "DELETE-\"Task ID\"",
-		"View all tasks":         "VIEW ALL",
-		"View Completed tasks":   "VIEW COMPLETED",
-		"View Pending tasks":     "VIEW PENDING",
-		"Mark task as Completed": "MARK COMPLETE-\"Task ID\"",
+		"View all tasks":         "ALL",
+		"View Completed tasks":   "DONE",
+		"View Pending tasks":     "PENDING",
+		"Mark task as Completed": "MARK-\"Task ID\"",
+	}
+
+	for w := 1; w <= 3; w++ {
+		go Worker(w, taskQueue, results)
 	}
 
 	for {
@@ -88,35 +105,27 @@ func main() {
 		fmt.Print("\nEnter a command: ")
 		input, _ := reader.ReadString('\n')
 
-		ParseInput(input)
+		go func(input string) {
+			ParseInput(input)
 
-		switch command {
-		case "ADD":
-			myList.AddTask(arg1, arg2, arg3)
-		case "VIEW ALL":
-			myList.ViewTasks()
-		case "VIEW COMPLETED":
-			myList.ViewCompletedTasks()
-		case "VIEW PENDING":
-			myList.ViewIncompletedTasks()
-		case "SAVE":
-			myList.Save()
-		default:
-			id, _ := strconv.Atoi(arg1)
-			go ProcessTask(id, ch2)
-			fmt.Println(<-ch2)
-		}
+			switch command {
+			case "ADD":
+				myList.AddTask(arg1, arg2, arg3)
+			case "ALL":
+				myList.ViewTasks()
+			case "DONE":
+				myList.ViewCompletedTasks()
+			case "PENDING":
+				myList.ViewIncompletedTasks()
+			case "SAVE":
+				myList.Save()
+			default:
+				id, _ := strconv.Atoi(arg1)
+				go ProcessTask(command, id, ch2)
+				fmt.Println(<-ch2)
+			}
+		}(input)
 	}
-}
-
-func Quit(quit chan os.Signal) {
-	<-quit
-	fmt.Println("\nTidying things Up...")
-	myList.Save()
-	// close(taskQueue)
-	// wg.Wait()
-	fmt.Println("\nBis Später!")
-	os.Exit(0)
 }
 
 func ParseInput(userInput string) {
@@ -124,7 +133,7 @@ func ParseInput(userInput string) {
 	inputSlice := strings.Split(userInput, "-")
 	command = strings.ToUpper(strings.TrimSpace(inputSlice[0]))
 	if len(inputSlice) <= 1 {
-		if command != "ADD" && command != "SAVE" && command != "DELETE" && command != "VIEW ALL" && command != "VIEW COMPLETED" && command != "VIEW PENDING" && command != "MARK COMPLETE" {
+		if command != "ADD" && command != "SAVE" && command != "DELETE" && command != "ALL" && command != "DONE" && command != "PENDING" && command != "MARK" {
 		}
 	} else if len(inputSlice) >= 2 {
 		arg1 = strings.TrimSpace(inputSlice[1])
@@ -140,17 +149,14 @@ func ParseInput(userInput string) {
 
 }
 
-func ProcessTask(id int, ch chan string) {
-	switch command {
-	case "MARK COMPLETE":
-		msg := myList.TaskComplete(id)
-		ch <- msg
-	case "DELETE":
-		msg := myList.DeleteTask(id)
-		ch <- msg
-	default:
-		ch <- "Command not supported\nTry Again!"
-	}
+func ProcessTask(command string, id int, ch2 chan string) {
+	// Add task to the wait group
+	// Send task ID to taskQueue
+	// Send/return the processed result to ch2
+
+	wg.Add(1)
+	taskQueue <- TaskRequest{Command: command, ID: id}
+	ch2 <- <-results
 }
 
 func (tList *TaskList) LoadTasks(ch chan bool) {
@@ -277,10 +283,28 @@ func (tList *TaskList) DeleteTask(id int) string {
 	return fmt.Sprintf("\tTask with ID: %v not found\n", id)
 }
 
-func Worker(id int, tasks <-chan int, results chan<- string) {
-	for taskID := range tasks {
-		result := myList.TaskComplete(taskID) // Mark task as complete
+func Worker(id int, tasks <-chan TaskRequest, results chan<- string) {
+	var result string
+	for task := range tasks {
+		switch task.Command {
+		case "MARK":
+			result = myList.TaskComplete(task.ID)
+		case "DELETE":
+			result = myList.DeleteTask(task.ID)
+		default:
+			result = "Command not supported\nTry Again!"
+		}
 		results <- fmt.Sprintf("Worker %d: %s", id, result)
-		wg.Done() // Signal that a task is done
+		wg.Done()
 	}
+}
+
+func Quit(quit chan os.Signal) {
+	<-quit
+	fmt.Println("\nTidying things Up...")
+	myList.Save()
+	close(taskQueue)
+	wg.Wait()
+	fmt.Println("\nBis Bald!")
+	os.Exit(0)
 }
