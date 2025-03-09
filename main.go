@@ -71,7 +71,7 @@ func main() {
 		ALL
 	*/
 	ch := make(chan bool)
-	ch2 := make(chan string)
+	// ch2 := make(chan string)
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 	go Quit(signalChan)
@@ -113,7 +113,7 @@ func main() {
 			continue
 		}
 		// mu.Lock()
-		fmt.Println(<-ch2)
+		// fmt.Println(<-ch2)
 		// mu.Unlock()
 		wg.Add(1)
 		taskQueue <- TaskRequest{Command: command, Description: arg1, ID: id, Priority: priority, DueDate: dDate}

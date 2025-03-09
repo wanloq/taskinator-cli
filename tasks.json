@@ -1,16 +1,1 @@
-[
- {
-  "id": 1,
-  "description": "Go to church on sunday",
-  "status": false,
-  "priority": 3,
-  "dueDate": "2025-03-03T00:00:00Z"
- },
- {
-  "id": 2,
-  "description": "Go to church on sunday",
-  "status": false,
-  "priority": 3,
-  "dueDate": "2025-03-03T00:00:00Z"
- }
-]
+[]
